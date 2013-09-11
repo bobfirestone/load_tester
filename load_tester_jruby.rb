@@ -22,36 +22,33 @@ class LoadTester
   def run
     executor = ThreadPoolExecutor.new(@threads, # core_pool_treads
                                   @threads, # max_pool_threads
-                                  60, # keep_alive_time
+                                  360, #60, # keep_alive_time
                                   TimeUnit::SECONDS,
                                   LinkedBlockingQueue.new)
 
-    num_tests = @total_hits/@threads
+    num_tests = @total_hits
     num_threads = @threads
-    total_time = 0.0
+
+    tasks = []
+
+    start = Time.now
 
     num_tests.times do |i|
-      tasks = []
-
-      t_0 = Time.now
-      num_threads.times do
-        task = FutureTask.new(RunLoadTest.new(@load_test))
-        executor.execute(task)
-        tasks << task
-      end
-
-      # Wait for all threads to complete
-      tasks.each do |t|
-        t.get
-      end
-      t_1 = Time.now
-
-      @run_time += (t_1-t_0)
+      task = FutureTask.new(RunLoadTest.new(@load_test))
+      executor.execute(task)
+      tasks << task
     end
+
+    tasks.each do |t|
+      t.get
+    end
+
+    @run_time = Time.now - start
+
     executor.shutdown()
 
   end
-  
+
 end
 
 
@@ -64,7 +61,7 @@ class LoadTest
     @pages = args[:pages]
     @stats = args[:stats] || Stats.new
   end
-  
+
   def run
     visit_page(@pages.shuffle.first)
   end
@@ -81,16 +78,16 @@ end
 
 class RunLoadTest
   include Callable
-  
+
   def initialize(load_test)
     @load_test = load_test
   end
-  
+
   def call
     @load_test.run
   end
 end
-  
+
 
 class Pages
   def self.ad_api_test
@@ -115,7 +112,39 @@ class Pages
       'what-does-the-ruby-1-9-tap-method-do-objecttap'
     ]
   end
-  
+
+  def self.opp
+    [
+      'advisors',
+      'advisors/funds',
+      'advisors/portfolio-managers',
+      'advisors/insights',
+      'advisors/advisor-exchange',
+      'advisors/fund/developing-markets-fund',
+      'advisors/fund/global-fund',
+      'advisors/fund/rising-dividends-fund',
+      'advisors/fund/global-strategic-income-fund',
+      'advisors/fund/gold-&-special-minerals-fund',
+      'advisors/fund/international-growth-fund'
+    ]
+  end
+
+  def self.qa1
+    [
+      '',
+      'funds',
+      'portfolio-managers',
+      'insights',
+      'advisor-exchange',
+      'fund/developing-markets-fund',
+      'fund/global-fund',
+      'fund/rising-dividends-fund',
+      'fund/global-strategic-income-fund',
+      'fund/gold-&-special-minerals-fund',
+      'fund/international-growth-fund'
+    ]
+  end
+
 end
 
 
@@ -125,7 +154,7 @@ class Stats
   def initialize
     @log = []
   end
-  
+
   def add_log(data)
     self.log << data
     puts data
@@ -139,12 +168,16 @@ end
 
 
 stats = Stats.new
-# lt1 = LoadTest.new({url: 'localhost:4000', stats: stats, pages: Pages.ad_api_test})
-lt1 = LoadTest.new({url: 'mattstopa.com', stats: stats, pages: Pages.stopa})
-lt = LoadTester.new(load_test: lt1, total_hits: 10_000, threads: 16)
+lt1 = LoadTest.new({url: 'localhost:3005', stats: stats, pages: Pages.opp})
+# lt1 = LoadTest.new({url: 'ediststg-qa1.oppfunds.com', stats: stats, pages: Pages.qa1})
+# lt1 = LoadTest.new({url: 'mattstopa.com', stats: stats, pages: Pages.stopa})
+lt = LoadTester.new(load_test: lt1, total_hits: 100, threads: 16)
 puts "The party is starting!"
+start = Time.now
+puts start
 lt.run
-
+fin = Time.now
+puts fin - start
 
 puts "It ran #{stats.log.count} times in: #{lt.run_time}"
 
